@@ -6,9 +6,9 @@
 ---
 
 # Informe sobre:
-## Integración de sensores y actuadores en un objeto inteligente
+## Integración de un objeto inteligente con una aplicación móvil y una herramienta de IA con la ayuda de MQTT y MCP
 
-### Evaluación de la Materia Internet de las Cosas
+### Práctica de la Materia Internet de las Cosas
 
 **Autores:**
 
@@ -18,7 +18,7 @@
 ---
 
 Cochabamba - Bolivia  
-Marzo 2026 
+Abril 2026 
 
 # 1. Requerimientos Funcionales y No Funcionales
 ## Requerimientos Funcionales
