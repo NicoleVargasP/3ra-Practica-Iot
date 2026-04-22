@@ -1,6 +1,6 @@
 #include <WiFi.h>          // or ESP8266WiFi.h
 #include <PubSubClient.h>
-
+#include "SmartLED.h"
 #include "LED.h"
 #include "SonarSensor.h"
 
@@ -15,24 +15,22 @@ WiFiClient espClient;
 PubSubClient client(espClient);
 
 // ---------------- LEDs ----------------
-LED ledGreen(17);
-LED ledYellow(18);
-LED ledRed(19);
-LED ledBlue(16);
+SmartLED leds[] = {
+  SmartLED(17, "IoT/ZubietaVargas/led/green/set", "IoT/ZubietaVargas/led/green/state"),
+  SmartLED(18, "IoT/ZubietaVargas/led/yellow/set", "IoT/ZubietaVargas/led/yellow/state"),
+  SmartLED(19, "IoT/ZubietaVargas/led/red/set", "IoT/ZubietaVargas/led/red/state"),
+  SmartLED(16, "IoT/ZubietaVargas/led/blue/set", "IoT/ZubietaVargas/led/blue/state")
+};
 
+const int NUM_LEDS = 4;
 
-
-bool greenVirtual = false;
-bool yellowVirtual = false;
-bool redVirtual = false;
-bool blueVirtual = false;
 
 // ---------------- SENSOR ----------------
 SonarSensor sonar(26, 27);
 
 // ---------------- TIMERS ----------------
 unsigned long lastSensorPublish = 0;
-const unsigned long BLINK_INTERVAL = 1500; // ms
+const unsigned long BLINK_INTERVAL = 1000; // time in ms for a virtual blink(just for visual purposes in the mqtt panel app) meaning they arent synced with the physical leds
 unsigned long lastBlinkTick = 0;
 
 // ---------------- FUNCTION DECLARATIONS ----------------
@@ -60,38 +58,31 @@ void setup() {
 
 // ---------------- LOOP ----------------
 void loop() {
-  void reconnectWiFi();
+  reconnectWiFi();
 
   if (!client.connected()) {
     reconnect();
   }
 
   client.loop();
-
-  // Update blinking LEDs
-  ledGreen.update();
-  ledYellow.update();
-  ledRed.update();
-  ledBlue.update();
-
-  // Publish sensor every 10 seconds
+//Updates every led in case it needs to blink
+  for (int i = 0; i < NUM_LEDS; i++) {
+    leds[i].update();
+  }
+//checks if 10 s passed in order to publish a distance once more
   if (millis() - lastSensorPublish > 10000) {
     lastSensorPublish = millis();
-
     float dist = sonar.getDistanceCm();
-
-    String msg = String(dist);
-    client.publish("IoT/ZubietaVargas/sensor/distance", msg.c_str());
+    client.publish("IoT/ZubietaVargas/sensor/distance", String(dist).c_str());
   }
-  // Handle the virtual blinking for the LEDS
+//checks if the virtual blink interval has passed and makes them blink virtually(just for aesthetic purposes in the mqtt panel app)
   if (millis() - lastBlinkTick >= BLINK_INTERVAL) {
-  lastBlinkTick = millis();
+    lastBlinkTick = millis();
 
-  handleVirtualBlink(ledGreen, greenVirtual, "IoT/ZubietaVargas/led/green/state");
-  handleVirtualBlink(ledYellow, yellowVirtual, "IoT/ZubietaVargas/led/yellow/state");
-  handleVirtualBlink(ledRed, redVirtual, "IoT/ZubietaVargas/led/red/state");
-  handleVirtualBlink(ledBlue, blueVirtual, "IoT/ZubietaVargas/led/blue/state");
-}
+    for (int i = 0; i < NUM_LEDS; i++) {
+      leds[i].virtualBlink(client);
+    }
+  }
 }
 
 // ---------------- MQTT RECONNECT ----------------
@@ -120,6 +111,7 @@ void reconnect() {
 }
 
 // ---------------- CALLBACK ----------------
+//Function called when the mqtt client receives a message in client.loop
 void callback(char* topic, byte* payload, unsigned int length) {
 
   String message;
@@ -129,58 +121,21 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
   String topicStr = String(topic);
 
-  // LED CONTROL
-  if (topicStr == "IoT/ZubietaVargas/led/green/set") {
-    handleLEDCommand(ledGreen, message, "IoT/ZubietaVargas/led/green/state");
+  for (int i = 0; i < NUM_LEDS; i++) {
+    if (topicStr == leds[i].getTopicSet()) {
+      leds[i].handleCommand(message, client);
+      return;
+    }
   }
 
-  else if (topicStr == "IoT/ZubietaVargas/led/yellow/set") {
-    handleLEDCommand(ledYellow, message, "IoT/ZubietaVargas/led/yellow/state");
-  }
-
-  else if (topicStr == "IoT/ZubietaVargas/led/red/set") {
-    handleLEDCommand(ledRed, message, "IoT/ZubietaVargas/led/red/state");
-  }
-
-  else if (topicStr == "IoT/ZubietaVargas/led/blue/set") {
-    handleLEDCommand(ledBlue, message, "IoT/ZubietaVargas/led/blue/state");
-  }
-
-  // SENSOR ON DEMAND
-  else if (topicStr == "IoT/ZubietaVargas/sensor/get") {
+  if (topicStr == "IoT/ZubietaVargas/sensor/get") {
     float dist = sonar.getDistanceCm();
     String msg = String(dist);
     client.publish("IoT/ZubietaVargas/sensor/distance", msg.c_str());
   }
 }
 
-// ---------------- LED HANDLER ----------------
-void handleLEDCommand(LED &led, String message, const char* stateTopic) {
-
-  if (message == "ON") {
-    led.setState(LED::ON);
-    client.publish(stateTopic, "ON");
-  }
-
-  else if (message == "OFF") {
-    led.setState(LED::OFF);
-    client.publish(stateTopic, "OFF");
-  }
-
-  else if (message.startsWith("BLINK")) {
-
-    int idx = message.indexOf(':');
-
-    if (idx > 0) {
-      int speed = message.substring(idx + 1).toInt();
-
-      led.setBlinksPerSecond(speed);
-      led.setState(LED::BLINK);
-
-      client.publish(stateTopic, "BLINK");
-    }
-  }
-}
+//If the device has been disconnected from the internet this function tryes reconnecting it 
 void reconnectWiFi() {
 
   if (WiFi.status() == WL_CONNECTED) return;
@@ -205,13 +160,4 @@ void reconnectWiFi() {
   } else {
     Serial.println("\nWiFi reconnect failed.");
   }
-}
-void handleVirtualBlink(LED &led, bool &state, const char* topic) {
-
-  // Solo si el LED está en modo BLINK
-  if (led.getState() != LED::BLINK) return;
-
-  state = !state;
-
-  client.publish(topic, state ? "ON" : "OFF");
 }

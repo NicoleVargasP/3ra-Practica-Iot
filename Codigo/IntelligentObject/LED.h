@@ -1,5 +1,5 @@
 #include <Arduino.h>
-
+#pragma once
 class LED {
 // has three types of states in order to track what the led should be doing we put it in an enum in order to avoid applying an incorrect state
 public:
