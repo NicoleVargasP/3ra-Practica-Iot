@@ -43,7 +43,7 @@ void handleVirtualBlink(LED &led, bool &state, const char* topic);
 // ---------------- SETUP ----------------
 void setup() {
   Serial.begin(115200);
-
+//initial connection to wifi
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
@@ -51,8 +51,9 @@ void setup() {
   }
 
   Serial.println("\nWiFi connected");
-
+//initial connection to mqtt broker
   client.setServer(mqtt_server, 1883);
+  //makes it so the client calls the callback function when it receives a message from a publisher
   client.setCallback(callback);
 }
 
@@ -116,18 +117,19 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
   String message;
   for (int i = 0; i < length; i++) {
-    message += (char)payload[i];
+    message += (char)payload[i];//gets the payload into a string
   }
 
   String topicStr = String(topic);
 
+  //For every led in the array it changes its state and publishes if its needed
   for (int i = 0; i < NUM_LEDS; i++) {
     if (topicStr == leds[i].getTopicSet()) {
       leds[i].handleCommand(message, client);
       return;
     }
   }
-
+// If anyone asks for a distance measurement the sensor will measure it
   if (topicStr == "IoT/ZubietaVargas/sensor/get") {
     float dist = sonar.getDistanceCm();
     String msg = String(dist);

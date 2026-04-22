@@ -17,7 +17,7 @@ public:
   void update() {
     led.update();
   }
-
+  //the handler of the messages that have been sent to the LED and changes its state and configs
   void handleCommand(String message, PubSubClient &client) {
 
     if (message == "ON") {
@@ -42,7 +42,9 @@ public:
       }
     }
   }
-
+//virtual blink is made just for the visual and aesthetic aspect of the iot mqtt panel app to turn on and off leds when its set to blink
+//these are virtual blinks that are not in sync with the real LEDS
+//publishes into the topic of state led 
   void virtualBlink(PubSubClient &client) {
     if (led.getState() != LED::BLINK) return;
 
